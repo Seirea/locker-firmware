@@ -1,8 +1,12 @@
+#!/usr/bin/env python3
+
 # import required libraries
 import RPi.GPIO as GPIO
 import time
 from enum import Enum, auto
+import checker
 
+# enum values to represent keypad keys
 class KeypadVal(Enum):
     ZERO = 0
     ONE = 1
@@ -23,17 +27,18 @@ class KeypadVal(Enum):
     STAR = auto()
     HASH = auto()
 
+# pins for servo motor
 SERVO_PIN = 2
 
-
+# pins for sending data out to keypad
 OUT_PINS = [
     25, 8, 7, 1
 ]
 
+# pins for receiving data from keypad
 IN_PINS = [
     12, 16, 20, 21
 ]
-
 
 # Initialize the GPIO pins
 GPIO.setwarnings(False)
@@ -52,14 +57,6 @@ pwm = GPIO.PWM(SERVO_PIN, 50)
 pwm.start(0)
 
 
-
-
-# The readLine function implements the procedure discussed in the article
-# It sends out a single pulse to one of the rows of the keypad
-# and then checks each column for changes
-# If it detects a change, the user pressed the button that connects the given line
-# to the detected column
-
 def set_angle(angle, pin):
 	duty = angle / 18 + 2
 	GPIO.output(pin, True)
@@ -72,6 +69,10 @@ def set_angle(angle, pin):
 
 	pwm.ChangeDutyCycle(0)
 
+
+# The readline sends out a single pulse to each of the rows of the keypad and checks each column for changes
+# If it detects a change, the user pressed the button that connects the given line
+# to the detected column
 
 def read_line(line):
     out = -1
@@ -101,7 +102,6 @@ def unlock_servo():
     set_angle(90, SERVO_PIN)
 
 lock_servo()
-
 try:
     while True:
         for i,v in enumerate(OUT_PINS):
@@ -111,15 +111,27 @@ try:
                 # print(has_read, i, val_read)
                 captured = key_matrix[i][val_read]
 
-                if (captured == KeypadVal.A):
-                    unlock_servo()
+                if (captured == KeypadVal.A) and (len(entered) > 0):
+                    entered_code = int("".join([str(i) for i in entered]))
+                    print(f"checking entered code: {entered_code}")
+                    res, res_code = checker.check_code(entered_code)
+                    print(f"response: {res}|{res_code}")
+                    if res_code == 200:
+                        print("unlocking servo")
+                        unlock_servo()
+
+                    entered = []
                 elif (captured == KeypadVal.B):
                     lock_servo()
+                    print("Locked")
+                elif (captured == KeypadVal.C):
+                    entered = []
+                    print("Code cleared")
                 elif (captured != last_captured):
                     entered.append(captured.value)
                 
                 last_captured = captured
-        print(entered)
+        print("".join([str(i) for i in entered]))
 
         time.sleep(0.1)
 except KeyboardInterrupt:
